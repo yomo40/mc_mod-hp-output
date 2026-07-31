@@ -1,1 +1,6 @@
 /.vscode
+/graphify-out/
+/claude.md
+/**/log.txt
+*.log
+log.txt
