@@ -1,9 +1,0 @@
-Manifest-Version: 1.0
-Specification-Title: Health Broadcast
-Specification-Vendor: Developer
-Specification-Version: 1
-Implementation-Title: health-broadcast-forge
-Implementation-Version: 1.2.0
-Implementation-Vendor: Developer
-Implementation-Timestamp: 2026-08-07T16:07:12+0800
-
