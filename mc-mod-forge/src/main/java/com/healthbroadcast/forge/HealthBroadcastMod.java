@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -118,9 +119,11 @@ public class HealthBroadcastMod {
             String source = formatSource(event.getSource());
             float healthAfter = mc.player.getHealth() - event.getAmount();
 
-            // 致命一击且未持不死图腾 → 不发受伤包,由死亡事件发死亡包
-            // (持图腾会被救回,LivingDeathEvent 不会触发,须照常发受伤包)
-            if (healthAfter <= 0 && !holdsTotem(mc.player)) return;
+            // 致命一击 → 不发受伤包,由死亡事件发死亡包
+            // (持图腾会被救回,LivingDeathEvent 不会触发,须照常发受伤包;
+            //  但 bypass-invulnerability 伤害如虚空/kill 连图腾也救不回,仍走死亡事件)
+            if (healthAfter <= 0
+                    && (!holdsTotem(mc.player) || event.getSource().is(DamageTypeTags.BYPASSES_INVULNERABILITY))) return;
 
             // 持图腾被救回时实际血量固定为 1.0
             float reportedHealth = healthAfter <= 0 ? 1.0f : healthAfter;
