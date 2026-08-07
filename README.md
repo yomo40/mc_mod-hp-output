@@ -65,40 +65,44 @@
 
 向 `127.0.0.1:<port>`（默认 39571）发送 JSON 格式 UDP 数据包。
 
-### 事件类型
+每次发送都是一个统一结构的 JSON 包：**基准字段常驻**（`alive`/`health`/`maxHealth`/`percentage`），**事件字段仅在触发时出现**（`damage`/`heal`/`death`/`source`）。通过字段存在性区分事件类型。
 
-#### 1. 血量更新 (health)
+### 包类型
+
+#### 1. 基准状态（周期心跳 / 首次进入）
 ```json
-{"type":"health","health":18.0,"maxHealth":20.0,"percentage":0.900,"timestamp":1733990400123}
+{"alive":true,"health":18.0,"maxHealth":20.0,"percentage":0.900}
 ```
 
-#### 2. 受伤事件 (damage)
+#### 2. 受伤事件
 ```json
-{"type":"damage","damage":3.0,"health":17.0,"maxHealth":20.0,"percentage":0.850,"source":"mob:Zombie","timestamp":1733990401456}
+{"alive":true,"health":17.0,"maxHealth":20.0,"percentage":0.850,"damage":3.0,"source":"mob:Zombie"}
 ```
 
-#### 3. 治疗事件 (heal)
+#### 3. 治疗事件
 ```json
-{"type":"heal","amount":2.0,"health":19.0,"maxHealth":20.0,"percentage":0.950,"timestamp":1733990402789}
+{"alive":true,"health":19.0,"maxHealth":20.0,"percentage":0.950,"heal":2.0}
 ```
 
-#### 4. 死亡事件 (death)
+#### 4. 死亡事件
 ```json
-{"type":"death","source":"fall","timestamp":1733990403000}
+{"alive":false,"health":0.0,"maxHealth":20.0,"percentage":0.000,"death":true,"source":"fall"}
 ```
+
+> 注意：致命一击只发送死亡事件，不会同时发送受伤事件；每个游戏事件最多产生一个数据包。
 
 ### 字段说明
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `type` | string | 事件类型: `health` / `damage` / `heal` / `death` |
-| `health` | float | 当前血量（半心=1.0，满血=20.0）|
-| `maxHealth` | float | 最大血量 |
-| `percentage` | float | 血量百分比（0.0 ~ 1.0）|
-| `damage` | float | 受到的伤害值 |
-| `amount` | float | 治疗量 |
-| `source` | string | 伤害/死亡来源 |
-| `timestamp` | long | Unix 时间戳（毫秒）|
+| 字段 | 类型 | 说明 | 出现时机 |
+|------|------|------|----------|
+| `alive` | boolean | 玩家是否存活 | 恒在 |
+| `health` | float | 当前血量（半心=1.0，满血=20.0） | 恒在 |
+| `maxHealth` | float | 最大血量 | 恒在 |
+| `percentage` | float | 血量百分比（0.0 ~ 1.0） | 恒在 |
+| `damage` | float | 受到的伤害值 | 受伤时 |
+| `heal` | float | 治疗量 | 治疗时 |
+| `source` | string | 伤害/死亡来源 | 受伤/死亡时 |
+| `death` | boolean | 恒为 `true` | 死亡时 |
 
 ### 常见伤害来源
 
@@ -123,7 +127,11 @@ sock.bind(('127.0.0.1', 39571))
 while True:
     data, _ = sock.recvfrom(1024)
     event = json.loads(data.decode())
-    print(f"[{event['type']}] {event}")
+    line = f"alive={event['alive']} hp={event['health']}/{event['maxHealth']}"
+    if 'damage' in event: line += f" damage={event['damage']} from {event['source']}"
+    if 'heal' in event: line += f" heal=+{event['heal']}"
+    if 'death' in event: line += " DEATH"
+    print(line)
 ```
 
 ### Node.js
@@ -132,7 +140,11 @@ const dgram = require('dgram');
 const server = dgram.createSocket('udp4');
 server.on('message', (msg) => {
   const data = JSON.parse(msg.toString());
-  console.log(`[${data.type}]`, data);
+  let line = `alive=${data.alive} hp=${data.health}/${data.maxHealth}`;
+  if (data.damage) line += ` damage=${data.damage} from ${data.source}`;
+  if (data.heal) line += ` heal=+${data.heal}`;
+  if (data.death) line += ' DEATH';
+  console.log(line);
 });
 server.bind(39571, '127.0.0.1');
 ```
