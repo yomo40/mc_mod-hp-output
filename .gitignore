@@ -8,3 +8,9 @@
 /**/log.txt
 *.log
 log.txt
+*.bin
+*.lock
+**/.gradle/
+**/build/
+**/tmp/
+**/gradle/
