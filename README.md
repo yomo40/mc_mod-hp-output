@@ -5,15 +5,15 @@
 **同时支持 Fabric 和 Forge 加载器**
 
 - **作者**: yomo40
-- **版本**: 1.1.0
+- **版本**: 1.2.0
 - **许可证**: MIT
 
 ## 下载
 
 | 版本 | Mod 加载器 | Minecraft 版本 | 文件 |
 |------|-----------|---------------|------|
-| 1.1.0 | Fabric | 1.14 ~ 1.21+ | `hp_output-fabric-1.1.0.jar` |
-| 1.1.0 | Forge | 1.12 ~ 1.20.x | `hp_output-forge-1.1.0.jar` |
+| 1.2.0 | Fabric | 1.14 ~ 1.21+ | `hp_output-fabric-1.2.0.jar` |
+| 1.2.0 | Forge | 1.12 ~ 1.20.x | `hp_output-forge-1.2.0.jar` |
 
 **注意：Fabric Mod Loader 仅支持 MC 1.14 +，1.12-1.13 只能使用 Forge。**
 
@@ -33,12 +33,12 @@
 1. 安装 [Fabric Loader](https://fabricmc.net/use/installer/)
 2. 安装前置mod[Mod Menu] 模组(https://modrinth.com/mod/modmenu)
 2. 安装 [Fabric API](https://modrinth.com/mod/fabric-api)
-3. 将 `hp_output-fabric-1.1.0.jar` 放入 `.minecraft/mods/`
+3. 将 `hp_output-fabric-1.2.0.jar` 放入 `.minecraft/mods/`
 
 ### Forge 版本
 
 1. 安装 [Forge](https://files.minecraftforge.net/)
-2. 将 `hp_output-forge-1.1.0.jar` 放入 `.minecraft/mods/`
+2. 将 `hp_output-forge-1.2.0.jar` 放入 `.minecraft/mods/`
 
 ## 游戏内配置端口
 
