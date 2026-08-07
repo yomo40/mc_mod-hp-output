@@ -14,6 +14,7 @@ log.txt
 **/build/
 **/tmp/
 **/gradle/
+/.LCKConfigScreen.java~
 
 # Build output
 build/
