@@ -4,31 +4,36 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 /**
  * UDP 广播器 - 平台无关的共享代码
  * 支持 MC 1.12 ~ 最新版本
+ *
+ * 协议 v2:统一单包结构。基准字段 (alive/health/maxHealth/percentage) 常驻,
+ * 事件字段 (damage/heal/source/death) 仅在触发时出现。消费者通过字段存在性区分事件。
+ * 与 Forge 的 HealthBroadcaster 输出结构保持一致。
  */
 public class HealthBroadcaster {
-    
+
     private static final String UDP_HOST = "127.0.0.1";
     public static final int DEFAULT_PORT = 39571;
-    
+
     private static HealthBroadcaster instance;
-    
+
     private DatagramSocket socket;
     private InetAddress address;
     private int port = DEFAULT_PORT;
     private boolean debugMode = true; // 调试模式
-    
-    // 状态缓存 - 避免重复发送
+
+    // 状态缓存
     private float lastHealth = -1;
     private float lastMaxHealth = -1;
-    
+
     private HealthBroadcaster() {
         initSocket();
     }
-    
+
     private void initSocket() {
         try {
             if (socket != null && !socket.isClosed()) {
@@ -42,145 +47,85 @@ public class HealthBroadcaster {
             e.printStackTrace();
         }
     }
-    
+
     public static synchronized HealthBroadcaster getInstance() {
         if (instance == null) {
             instance = new HealthBroadcaster();
         }
         return instance;
     }
-    
-    /**
-     * 设置调试模式
-     */
+
     public void setDebugMode(boolean debug) {
         this.debugMode = debug;
     }
-    
+
     private void log(String message) {
         if (debugMode) {
             System.out.println("[HealthBroadcast] " + message);
         }
     }
-    
-    /**
-     * 设置 UDP 端口
-     */
+
     public void setPort(int port) {
         if (port > 0 && port <= 65535) {
             if (this.port != port) {
                 this.port = port;
                 log("UDP port changed to: " + port);
-                // 重新初始化 socket
                 initSocket();
             }
         }
     }
-    
-    /**
-     * 获取当前端口
-     */
+
     public int getPort() {
         return port;
     }
-    
+
+    // ========== 公开发送方法 ==========
+
     /**
-     * 强制发送血量数据（忽略缓存）
-     */
-    public boolean forceHealthUpdate(float health, float maxHealth) {
-        lastHealth = health;
-        lastMaxHealth = maxHealth;
-        
-        HealthData data = new HealthData();
-        data.type = "health";
-        data.health = health;
-        data.maxHealth = maxHealth;
-        data.percentage = maxHealth > 0 ? health / maxHealth : 0;
-        data.timestamp = System.currentTimeMillis();
-        
-        log("Force sending health: " + health + "/" + maxHealth);
-        return send(data.toJson());
-    }
-    
-    /**
-     * 发送血量数据 (仅在变化时发送)
+     * 发送基准状态包 (周期/首帧强制快照)。无条件发送。
      * @return true 如果发送了数据
      */
-    public boolean sendHealthUpdate(float health, float maxHealth) {
-        // 使用阈值比较，避免浮点数精度问题
-        if (Math.abs(health - lastHealth) < 0.01f && Math.abs(maxHealth - lastMaxHealth) < 0.01f) {
-            return false;
-        }
-        
+    public boolean sendState(float health, float maxHealth) {
         lastHealth = health;
         lastMaxHealth = maxHealth;
-        
-        HealthData data = new HealthData();
-        data.type = "health";
-        data.health = health;
-        data.maxHealth = maxHealth;
-        data.percentage = maxHealth > 0 ? health / maxHealth : 0;
-        data.timestamp = System.currentTimeMillis();
-        
-        log("Sending health update: " + health + "/" + maxHealth);
-        return send(data.toJson());
+        String json = buildStateJson(health, maxHealth);
+        log("Sending state: " + health + "/" + maxHealth);
+        return send(json);
     }
-    
+
     /**
-     * 发送受伤事件
+     * 发送受伤事件包
      */
     public boolean sendDamageEvent(float damage, float healthAfter, float maxHealth, String source) {
-        DamageData data = new DamageData();
-        data.type = "damage";
-        data.damage = damage;
-        data.health = healthAfter;
-        data.maxHealth = maxHealth;
-        data.percentage = maxHealth > 0 ? healthAfter / maxHealth : 0;
-        data.source = source != null ? source : "unknown";
-        data.timestamp = System.currentTimeMillis();
-        
-        // 更新缓存
         lastHealth = healthAfter;
         lastMaxHealth = maxHealth;
-        
+        String json = buildDamageJson(damage, healthAfter, maxHealth, source);
         log("Sending damage event: " + damage + " from " + source + ", health now: " + healthAfter);
-        return send(data.toJson());
+        return send(json);
     }
-    
+
     /**
-     * 发送死亡事件
-     */
-    public boolean sendDeathEvent(String source) {
-        DeathData data = new DeathData();
-        data.type = "death";
-        data.source = source != null ? source : "unknown";
-        data.timestamp = System.currentTimeMillis();
-        
-        lastHealth = 0;
-        
-        log("Sending death event, source: " + source);
-        return send(data.toJson());
-    }
-    
-    /**
-     * 发送治疗事件
+     * 发送治疗事件包
      */
     public boolean sendHealEvent(float amount, float healthAfter, float maxHealth) {
-        HealData data = new HealData();
-        data.type = "heal";
-        data.amount = amount;
-        data.health = healthAfter;
-        data.maxHealth = maxHealth;
-        data.percentage = maxHealth > 0 ? healthAfter / maxHealth : 0;
-        data.timestamp = System.currentTimeMillis();
-        
         lastHealth = healthAfter;
         lastMaxHealth = maxHealth;
-        
+        String json = buildHealJson(amount, healthAfter, maxHealth);
         log("Sending heal event: +" + amount + ", health now: " + healthAfter);
-        return send(data.toJson());
+        return send(json);
     }
-    
+
+    /**
+     * 发送死亡事件包
+     */
+    public boolean sendDeathEvent(float maxHealth, String source) {
+        lastHealth = 0;
+        lastMaxHealth = maxHealth;
+        String json = buildDeathJson(maxHealth, source);
+        log("Sending death event, source: " + source);
+        return send(json);
+    }
+
     /**
      * 重置状态 (玩家断开/重生时调用)
      */
@@ -189,7 +134,87 @@ public class HealthBroadcaster {
         lastMaxHealth = -1;
         log("State reset");
     }
-    
+
+    // ========== JSON 包构建 (包级可见,便于独立测试) ==========
+
+    static String buildStateJson(float health, float maxHealth) {
+        StringBuilder sb = new StringBuilder(64);
+        sb.append("{\"alive\":").append(health > 0 ? "true" : "false")
+          .append(",\"health\":").append(dec(health, 1))
+          .append(",\"maxHealth\":").append(dec(maxHealth, 1))
+          .append(",\"percentage\":").append(dec(percent(health, maxHealth), 3))
+          .append('}');
+        return sb.toString();
+    }
+
+    static String buildDamageJson(float damage, float healthAfter, float maxHealth, String source) {
+        StringBuilder sb = new StringBuilder(96);
+        sb.append("{\"alive\":").append(healthAfter > 0 ? "true" : "false")
+          .append(",\"health\":").append(dec(healthAfter, 1))
+          .append(",\"maxHealth\":").append(dec(maxHealth, 1))
+          .append(",\"percentage\":").append(dec(percent(healthAfter, maxHealth), 3))
+          .append(",\"damage\":").append(dec(damage, 1))
+          .append(",\"source\":\"").append(escapeJson(source != null ? source : "unknown"))
+          .append("\"}");
+        return sb.toString();
+    }
+
+    static String buildHealJson(float amount, float healthAfter, float maxHealth) {
+        StringBuilder sb = new StringBuilder(80);
+        sb.append("{\"alive\":").append(healthAfter > 0 ? "true" : "false")
+          .append(",\"health\":").append(dec(healthAfter, 1))
+          .append(",\"maxHealth\":").append(dec(maxHealth, 1))
+          .append(",\"percentage\":").append(dec(percent(healthAfter, maxHealth), 3))
+          .append(",\"heal\":").append(dec(amount, 1))
+          .append('}');
+        return sb.toString();
+    }
+
+    static String buildDeathJson(float maxHealth, String source) {
+        StringBuilder sb = new StringBuilder(80);
+        sb.append("{\"alive\":false,\"health\":0.0")
+          .append(",\"maxHealth\":").append(dec(maxHealth, 1))
+          .append(",\"percentage\":0.000")
+          .append(",\"death\":true")
+          .append(",\"source\":\"").append(escapeJson(source != null ? source : "unknown"))
+          .append("\"}");
+        return sb.toString();
+    }
+
+    private static float percent(float health, float maxHealth) {
+        return maxHealth > 0 ? health / maxHealth : 0;
+    }
+
+    private static String dec(float value, int digits) {
+        return String.format(Locale.ROOT, "%." + digits + "f", value);
+    }
+
+    /**
+     * JSON 字符串转义:引号、反斜杠、控制字符。非 ASCII 原样保留。
+     */
+    static String escapeJson(String input) {
+        StringBuilder sb = new StringBuilder(input.length() + 16);
+        for (int i = 0; i < input.length(); i++) {
+            char c = input.charAt(i);
+            switch (c) {
+                case '"':  sb.append("\\\""); break;
+                case '\\': sb.append("\\\\"); break;
+                case '\n': sb.append("\\n"); break;
+                case '\t': sb.append("\\t"); break;
+                case '\r': sb.append("\\r"); break;
+                case '\b': sb.append("\\b"); break;
+                case '\f': sb.append("\\f"); break;
+                default:
+                    if (c < 0x20) {
+                        sb.append(String.format(Locale.ROOT, "\\u%04x", (int) c));
+                    } else {
+                        sb.append(c);
+                    }
+            }
+        }
+        return sb.toString();
+    }
+
     private boolean send(String json) {
         if (socket == null || socket.isClosed()) {
             log("Socket is null or closed, attempting to reinitialize...");
@@ -199,7 +224,6 @@ public class HealthBroadcaster {
                 return false;
             }
         }
-        
         try {
             byte[] buffer = json.getBytes(StandardCharsets.UTF_8);
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length, address, port);
@@ -212,76 +236,11 @@ public class HealthBroadcaster {
             return false;
         }
     }
-    
+
     public void close() {
         if (socket != null && !socket.isClosed()) {
             socket.close();
             log("Socket closed");
-        }
-    }
-    
-    // ========== 数据类 ==========
-    
-    public static class HealthData {
-        public String type;
-        public float health;
-        public float maxHealth;
-        public float percentage;
-        public long timestamp;
-        
-        public String toJson() {
-            return String.format(
-                "{\"type\":\"%s\",\"health\":%.1f,\"maxHealth\":%.1f,\"percentage\":%.3f,\"timestamp\":%d}",
-                type, health, maxHealth, percentage, timestamp
-            );
-        }
-    }
-    
-    public static class DamageData {
-        public String type;
-        public float damage;
-        public float health;
-        public float maxHealth;
-        public float percentage;
-        public String source;
-        public long timestamp;
-        
-        public String toJson() {
-            String safeSource = source != null ? source.replace("\"", "\\\"") : "unknown";
-            return String.format(
-                "{\"type\":\"%s\",\"damage\":%.1f,\"health\":%.1f,\"maxHealth\":%.1f,\"percentage\":%.3f,\"source\":\"%s\",\"timestamp\":%d}",
-                type, damage, health, maxHealth, percentage, safeSource, timestamp
-            );
-        }
-    }
-    
-    public static class DeathData {
-        public String type;
-        public String source;
-        public long timestamp;
-        
-        public String toJson() {
-            String safeSource = source != null ? source.replace("\"", "\\\"") : "unknown";
-            return String.format(
-                "{\"type\":\"%s\",\"source\":\"%s\",\"timestamp\":%d}",
-                type, safeSource, timestamp
-            );
-        }
-    }
-    
-    public static class HealData {
-        public String type;
-        public float amount;
-        public float health;
-        public float maxHealth;
-        public float percentage;
-        public long timestamp;
-        
-        public String toJson() {
-            return String.format(
-                "{\"type\":\"%s\",\"amount\":%.1f,\"health\":%.1f,\"maxHealth\":%.1f,\"percentage\":%.3f,\"timestamp\":%d}",
-                type, amount, health, maxHealth, percentage, timestamp
-            );
         }
     }
 }
