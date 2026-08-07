@@ -14,3 +14,24 @@ log.txt
 **/build/
 **/tmp/
 **/gradle/
+
+# Build output
+build/
+.gradle/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.code-workspace
+
+# Fabric
+run/
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Gradle Wrapper JAR (需要下载)
+gradle/wrapper/gradle-wrapper.jar
