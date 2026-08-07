@@ -2,8 +2,8 @@
 
 ## Links
 
-- [CurseForge](https://www.curseforge.com/minecraft/mc-mods/...)
-- [Modrinth](https://modrinth.com/mod/...)
+- [CurseForge](https://www.curseforge.com/minecraft/mc-mods/mc-mod-hp-output)
+- [Modrinth](https://modrinth.com/mod/mc_mod-hp-output)
 
 轻量 Minecraft Mod - 监听玩家血量变化和受伤事件，通过 UDP 广播到本机回环地址。
 
