@@ -1,6 +1,8 @@
 /.vscode
 /.claude/
 /graphify-out/
+/docs/
+/docs/superpowres/
 /github/
 /claude.md
 /**/log.txt
