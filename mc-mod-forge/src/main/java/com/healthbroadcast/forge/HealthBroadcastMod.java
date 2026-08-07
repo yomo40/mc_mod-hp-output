@@ -7,6 +7,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Items;
 import net.minecraftforge.client.ConfigScreenHandler;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
@@ -117,16 +118,28 @@ public class HealthBroadcastMod {
             String source = formatSource(event.getSource());
             float healthAfter = mc.player.getHealth() - event.getAmount();
 
-            // 致命一击 → 不发受伤包,由死亡事件发死亡包
-            if (healthAfter <= 0) return;
+            // 致命一击且未持不死图腾 → 不发受伤包,由死亡事件发死亡包
+            // (持图腾会被救回,LivingDeathEvent 不会触发,须照常发受伤包)
+            if (healthAfter <= 0 && !holdsTotem(mc.player)) return;
+
+            // 持图腾被救回时实际血量固定为 1.0
+            float reportedHealth = healthAfter <= 0 ? 1.0f : healthAfter;
 
             LOGGER.info("[HealthBroadcast] LivingDamageEvent: {} damage from {}", event.getAmount(), source);
             HealthBroadcaster.getInstance().sendDamage(
                 event.getAmount(),
-                healthAfter,
+                reportedHealth,
                 source
             );
         }
+    }
+
+    /**
+     * 玩家主手或副手是否持有不死图腾
+     */
+    private static boolean holdsTotem(Player player) {
+        return player.getMainHandItem().getItem() == Items.TOTEM_OF_UNDYING
+            || player.getOffhandItem().getItem() == Items.TOTEM_OF_UNDYING;
     }
 
     @SubscribeEvent
